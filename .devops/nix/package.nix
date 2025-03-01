@@ -175,6 +175,7 @@ effectiveStdenv.mkDerivation (finalAttrs: {
       (cmakeBool "GGML_BLAS" useBlas)
       (cmakeBool "GGML_CUDA" useCuda)
       (cmakeBool "GGML_HIP" useRocm)
+      (cmakeBool "GGML_HIP_UMA" useRocm)
       (cmakeBool "GGML_METAL" useMetalKit)
       (cmakeBool "GGML_VULKAN" useVulkan)
       (cmakeBool "GGML_STATIC" enableStatic)
@@ -190,6 +191,7 @@ effectiveStdenv.mkDerivation (finalAttrs: {
     ++ optionals useRocm [
       (cmakeFeature "CMAKE_HIP_COMPILER" "${rocmPackages.llvm.clang}/bin/clang")
       (cmakeFeature "CMAKE_HIP_ARCHITECTURES" rocmGpuTargets)
+      (cmakeFeature "AMDGPU_TARGETS" "gfx1030")
     ]
     ++ optionals useMetalKit [
       (lib.cmakeFeature "CMAKE_C_FLAGS" "-D__ARM_FEATURE_DOTPROD=1")
