@@ -24,6 +24,9 @@
                 shellHook = ''
                   echo "Entering ${name} devShell"
                 '';
+                ROCM_PATH = "${pkgs.rocmPackages.clr}";
+                HIP_DEVICE_LIB_PATH = "${pkgs.rocmPackages.rocm-device-libs}/amdgcn/bitcode";
+                HSA_OVERRIDE_GFX_VERSION = "10.3.0";
               };
               "${name}-extra" =
                 if (name == "python-scripts") then
@@ -38,6 +41,8 @@
                     # Extra packages that *may* be used by some scripts
                     packages = [
                         pkgs.python3Packages.tiktoken
+                        pkgs.rocmPackages.clr
+                        pkgs.amdgpu_top
                     ];
                     shellHook = ''
                       echo "Entering ${name} devShell"

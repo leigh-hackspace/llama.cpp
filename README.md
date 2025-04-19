@@ -1,3 +1,81 @@
+# Tweaked ROCm fork for RDNA2 iGPU with UMA specifically for NixOS users:
+
+Designed to run on the AMD Radeon 680M iGPU present on the Ryzen 6600H.
+
+This allows the uses of system RAM as VRAM meaning a system with 64GB of DDR5 can run models up to ~30GB in size accelerated by the GPU.
+
+The system we are using is a GMKtec M6 available for about $300.
+
+## TL;DR for NixOS users
+
+### To develop and build manually:
+
+```bash
+nix develop .#devShells.x86_64-linux.rocm
+
+./build-rocm.sh
+```
+
+Example usage:
+
+```bash
+build/bin/llama-simple -m ~/Models/mistral-7b-instruct-v0.2.Q6_K.gguf "Hello my name is"
+```
+
+Confirm the GPU is doing the work using `amdgpu_top`.
+
+### To use as a package:
+
+Add following as input to system flake:
+
+```nix
+llama-cpp-leigh.url = "github:leigh-hackspace/llama.cpp/master";
+```
+
+Add following to `modules` list within `nixosSystem` export:
+
+```nix
+({ config, pkgs, options, ... }: {
+    nixpkgs.overlays = [
+        (final: prev: {
+            llama-cpp-leigh-rocm = llama-cpp-leigh.packages.${pkgs.system}.rocm;
+        })
+    ];
+})
+```
+
+Then use the imported package as you normally would:
+
+```nix
+environment.systemPackages = with pkgs; [
+    llama-cpp-leigh-rocm
+];
+```
+
+### Example systemd unit:
+
+```nix
+# Run a 7B Mistral model on the CPU
+# Source: https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF
+# View logs with: journalctl -u llama-server-7b -f
+systemd.services.llama-server-7b = {
+    description = "LLaMa Server Mistral 7B";
+    after = [ "network.target" ];
+
+    # Ensure the service is started at boot
+    wantedBy = [ "multi-user.target" ];
+
+    # -t 1 = Use 1 CPU core
+    # -ngl 1000 = Offload up to a 1000 layers to the GPU (should be enough for almost every model)
+    serviceConfig = {
+        ExecStart = "${pkgs.llama-cpp-leigh-rocm}/bin/llama-server -m /home/cjdell/Models/mistral-7b-instruct-v0.2.Q6_K.gguf -t 1 -ngl 1000 --host 0.0.0.0 --port 8080";
+        Restart = "always";
+    };
+};
+```
+
+----
+
 # llama.cpp
 
 ![llama](https://user-images.githubusercontent.com/1991296/230134379-7181e485-c521-4d23-a0d6-f7b3b61ba524.png)
