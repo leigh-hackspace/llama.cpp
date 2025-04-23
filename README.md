@@ -2,13 +2,75 @@
 
 Designed to run on the AMD Radeon 680M iGPU present on the Ryzen 6600H.
 
-This allows the uses of system RAM as VRAM meaning a system with 64GB of DDR5 can run models up to ~30GB in size accelerated by the GPU.
+This allows the uses of system RAM as VRAM meaning a system with 64GB of DDR5 can run models up to ~50GB in size accelerated by the GPU.
 
 The system we are using is a GMKtec M6 available for about $300.
 
 ## TL;DR for NixOS users
 
-### To develop and build manually:
+### System config for max GPU memory:
+
+Make 56GB of the total 64GB available to the GPU. In `hardware-configuration.nix`:
+
+```nix
+boot.kernelPackages = pkgs.linuxPackages_latest;
+boot.kernelParams = [
+    "mitigations=off"
+    "amd_iommu=on"
+    "amdgpu.gttsize=57344"
+    "ttm.pages_limit=13668850"
+    "ttm.page_pool_size=13668850"
+];
+```
+
+Note: We do not lose this RAM but rather allow access to it.
+
+### UPDATE! Vulkan instructions:
+
+Now using Vulkan as this appears to be slightly faster and more stable (especially when running models simultaneously).
+
+Build Docker image and make available to the system:
+
+```bash
+docker build -t llama-cpp-vulkan --target server -f .devops/vulkan.Dockerfile .
+podman save llama-cpp-vulkan -o llama-cpp-vulkan.tar
+sudo podman load -i llama-cpp-vulkan.tar
+```
+
+#### Example use of Podman container:
+
+```nix
+virtualisation.oci-containers.containers = {
+    llama-server-8b = {
+        hostname = "llama-server-8b";
+        image = "llama-cpp-vulkan";
+        cmd = [
+            "-m" "/llama.cpp/models/nvidia_Llama-3.1-8B-UltraLong-4M-Instruct-Q6_K_L.gguf"
+            "-ngl" "65" "--port" "8080"
+        ];
+        autoStart = true;
+        ports = [
+            "8081:8080"
+        ];
+        volumes = [
+            "/path/to/llama.cpp:/llama.cpp:Z"
+        ];
+        environment = {
+            TZ = "Europe/London";
+        };
+        extraOptions = [
+            "--device=/dev/dri/renderD128"
+            "--device=/dev/dri/card1"
+        ];
+    };
+};
+```
+
+### ROCm
+
+In my tests I have found ROCm to be marginally slower and sometimes locks up when using multiple instances.
+
+#### To develop and build manually:
 
 ```bash
 nix develop .#devShells.x86_64-linux.rocm
@@ -24,7 +86,7 @@ build/bin/llama-simple -m ~/Models/mistral-7b-instruct-v0.2.Q6_K.gguf "Hello my 
 
 Confirm the GPU is doing the work using `amdgpu_top`.
 
-### To use as a package:
+#### To use as a package:
 
 Add following as input to system flake:
 
@@ -52,7 +114,7 @@ environment.systemPackages = with pkgs; [
 ];
 ```
 
-### Example systemd unit:
+#### Example systemd unit:
 
 ```nix
 # Run a 7B Mistral model on the CPU
